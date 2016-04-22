@@ -1,0 +1,460 @@
+/**
+ * @Class Name: UltraSetupController 
+ * @Description: This is Controller class of visual force page "UltraSetup". 
+    It saves and update the setting for sObjects to track the history of fields.
+    display the triggerable object's list and their updatabale fields in row and column.
+    Implemented pagination for showing fields.  
+  ========================================================================================================================
+        Version   | Date        | Author             | Comments
+  -------------------------------------------------------------------------------------------------------------------------
+        1.0       | 15-11-2015  | Eternus Solution   | 1.Created the class for above functionality
+        1.1       | 2-01-2016   | Eternus Solution   | 1.Added Pagination for fileds 
+        1.2       | 26-02-2016  | Eternus Solution   | 1.Code review changes                            
+  ========================================================================================================================
+ */
+
+public with sharing class UltraSetupController {
+    // objects variable for holding selected object name
+    public String objects{get;set;}
+    //set for holding the selected fields of selected object
+    public Set<String>  selectedFieldSet ;
+    //boolean varible to check object's all fields are selected or not  
+    public boolean isAllSelected{get;set;}
+    //int variable for holding page size for pagination
+    public Integer counter = 0;
+    //int varible to hold number fields to display on single page.
+    public Integer pageSize { get; set; }
+    //int variable to hold total number of fields for sObject
+    public Integer totalSize { get; set; }
+    //Wrapper class list to hold all fields of selected object
+    public list<UltraTrackWrapper> allFieldswrapperClassList;
+    //To hold all editable sobject list  
+    public list<String> objList{get;set;}
+    //boolean variable to mak visible or invisible field section
+    public boolean isObject{get;set;} 
+    // to store how many number of columns to display the fields
+    public Integer numberOfColumns;
+    // to store how many fields per column to be displayed
+    public Integer numberOfFieldsPerColumns;
+    //Wrapper class list to display fields on page
+    public list<UltraTrackWrapper> wrapperClassList = new list<UltraTrackWrapper>();
+    list<Ultra_Track_Container__c> savedFieldsList = new list<Ultra_Track_Container__c>();
+    //list of list for display data dynamicaly in grid format 
+    public list<list<UltraTrackWrapper>> lstOfLstWrapperClass {get;set;}
+    //wrapperclass list for to add elements into list of list.
+    public list<UltraTrackWrapper> lstWrap = new list<UltraTrackWrapper>();
+    //Utility class object to call methods
+    public UltraTrackUtilityClass objUtility {get;set;}
+    /**
+        * @Author: Eternus Solutions
+        * @description : Constuctor to Configure the number of columns and number of fields per column to display
+        * @Param :
+        * @Return : 
+        * @Date:24/02/2016
+    */
+    public UltraSetupController() {
+        isObject = false;
+        isAllSelected = false;
+        map<String,Configuration__c> mapConfig = Configuration__c.getAll();
+        if(mapConfig.containsKey(system.Label.ConfigureColsAndFieldsCustomSettingRecordName)){
+              Configuration__c objCofig = mapConfig.get(system.Label.ConfigureColsAndFieldsCustomSettingRecordName);
+              numberOfColumns = Integer.valueOf(objCofig.Number_Of_Columns__c);
+              numberOfFieldsPerColumns = Integer.valueOf(objCofig.Number_Of_Fields_Per_Column__c);
+        }
+        else{
+              numberOfColumns = Integer.valueOf(system.label.DefaultNumberOfColumnValue);
+              numberOfFieldsPerColumns = Integer.valueOf(system.label.DefaultNumberOfFieldsPerColumnValue);
+        }
+          
+        pageSize = integer.valueOf(numberOfFieldsPerColumns)*integer.valueOf(numberOfColumns);
+        //Call the method to get all objects list
+        objList = getObjectList();
+        objUtility = new UltraTrackUtilityClass();
+        
+    }
+    /**
+        * @Author: Eternus Solutions
+        * @description : Method to get the all triggerable and updateable objects from org
+        * @Param :
+        * @Return :it will return the list of object names 
+        * @Date:24/02/2016
+    */
+    public list<string> getObjectList(){
+        map<String,Object> mapResp = new map<String,Object>(); 
+        list<object> sObjectList = new list<object>();
+        list<string> triggerableObjList = new list<String>();
+        String sessionId = userInfo.getSessionId();
+        try{
+            Httprequest req = new HttpRequest();
+            HttpResponse res = new HttpResponse ();
+            req.setEndpoint(URL.getSalesforceBaseUrl().toExternalForm() + '/services/data/v36.0/sobjects/');  
+            req.setMethod('GET');
+            req.setHeader('Content-Type', 'application/json');
+            req.setHeader('Authorization', 'Bearer  ' +sessionId);
+            Http httpReq = new Http();
+            res = httpReq.send(req);
+            
+            mapResp = (map<String,Object>) JSON.deserializeUntyped(res.getBody());
+            if(!mapResp.values().isEmpty()){
+                sObjectList = (list<object>)mapResp.get('sobjects');
+                if(!sObjectList.isEmpty()){
+                    for(object objInfo : sObjectList )
+                    {
+                        map<String,Object> mapObjInfo = (map<String,Object>)objInfo;
+                        if(string.valueOf(mapObjInfo.get('triggerable')) == 'true' && 
+                                  string.valueOf(mapObjInfo.get('updateable')) == 'true')
+                        {
+                            triggerableObjList.add(String.valueOf(mapObjInfo.get('label'))
+                                      +'('+String.valueOF(mapObjInfo.get('name'))+')');
+                        }
+                    }
+                }
+            }
+        }
+        catch(System.CalloutException e){
+            ApexPages.AddMessage(new ApexPages.Message(ApexPages.severity.WARNING,
+                                                       e.getMessage()));
+        }
+        return triggerableObjList;
+    }
+
+    /**
+        * @Author: Eternus Solutions
+        * @description : Method to get selected object's all editable field's label with isSelected status.
+        * @Param :
+        * @Return : 
+        * @Date:15/11/2015
+    */
+    public void getFieldsList(){
+        allFieldswrapperClassList = new list<UltraTrackWrapper>();
+        map<String,String> mapFieldsAndLabels = new map<String,String>();
+        Set<String> setOfSelectedFields = new Set<String>();
+        if(String.isNotBlank(objects)) {
+            mapFieldsAndLabels = objUtility.getFieldNamesAndLabels(objects.substringAfterLast('(').remove(')'));
+            isObject = (!mapFieldsAndLabels.values().isEmpty()) ? true : false;
+        }
+        savedFieldsList = [SELECT Id,
+                                  Object_Name__c,
+                                  Tracked_Fields__c,
+                                  Is_Tracking_Enabled__c 
+                           FROM Ultra_Track_Container__c
+                           WHERE Object_Name__c =: objects.substringAfterLast('(').remove(')') 
+                           limit 1];
+        if(!savedFieldsList.isEmpty() && String.isNotBlank(savedFieldsList[0].Tracked_Fields__c) ){
+            setOfSelectedFields = 
+                new Set<String>(savedFieldsList[0].Tracked_Fields__c.split(','));
+        }
+        if(!mapFieldsAndLabels.values().isEmpty()){
+            for (String field : mapFieldsAndLabels.keySet()) {
+               if(!setOfSelectedFields.isEmpty() && setOfSelectedFields.contains(field)){
+                   allFieldswrapperClassList.add(new UltraTrackWrapper(field,
+                                                        mapFieldsAndLabels.get(field),
+                                                        true)); 
+               }  
+               else{
+                allFieldswrapperClassList.add(new UltraTrackWrapper(field,
+                                                    mapFieldsAndLabels.get(field),
+                                                    false));
+               }   
+           } 
+       }
+       allFieldswrapperClassList.sort();
+    }
+   
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to find all selected fields for selected sObject.
+                       2.this method calls the saveSetting and updateSetting methods for saving the setting. 
+        * @Param :
+        * @Return : 
+        * @Date:15/11/2015
+    */
+     public void selectedFieldsName () {
+          selectedFieldSet = new set<String>();
+          if (!allFieldswrapperClassList.isEmpty()) {
+             for(UltraTrackWrapper wrapperObj : allFieldswrapperClassList) {
+                if (wrapperObj.isSelected != null && wrapperObj.isSelected) {
+                   selectedFieldSet.add(wrapperObj.fieldApiName);
+                }
+             }
+          }
+        if(!savedFieldsList.isEmpty()){
+            updateSetting(selectedFieldSet);
+        }
+        else{
+            saveSetting(selectedFieldSet);
+        }
+     }
+
+      /**
+        * @Author: Eternus Solutions
+        * @description : 1.method to call to methods when user select object.
+                       2.Method getFieldsList() will be call to get fileds 
+                       3.Method first() will get fields for first page (pagination)
+        * @Param :
+        * @Return : 
+        * @Date:15/11/2015
+    */
+     public PageReference refresh() {
+            getFieldsList();
+            first();
+        return null;
+     }
+ 
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to set the selectAll checkbox value if all fields was selected.
+        * @Param :
+        * @Return : 
+        * @Date:15/11/2015
+    */
+     public void setSelectAllCheckboxValue(List<UltraTrackWrapper> wrapperClassList) {
+        if(!wrapperClassList.isEmpty()){
+            isAllSelected = true;
+            for(UltraTrackWrapper obj: wrapperClassList) {
+                if(obj.isSelected == null ||(obj.isSelected != null && !obj.isSelected)){
+                    isAllSelected = false;
+                    break;
+                }
+            }
+        }
+     }
+     
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to Save the setting into custom object for 
+                        respected object's respected fields
+        * @Param : set of string which holds the name of fields.
+        * @Return : 
+        * @Date:15/11/2015
+    */
+    public void saveSetting(Set<String> selectedFieldSet) 
+    {
+        list<Ultra_Track_Container__c> listToSaveSetting =
+                                    new list<Ultra_Track_Container__c>();
+        String commaSepratedString = '';
+        if(savedFieldsList.isEmpty() && !selectedFieldSet.isEmpty()) {
+            commaSepratedString = getCommaSepratedFields(selectedFieldSet);
+            listToSaveSetting.add(new Ultra_Track_Container__c 
+                        (Object_Name__c = objects.substringAfterLast('(').remove(')'),
+                        Object_Label__c = objects,
+                        Tracked_Fields__c = commaSepratedString,
+                        Is_Tracking_Enabled__c = true));
+            //insert listToSaveSetting contains 1 record; 
+            for(Database.SaveResult sr : Database.insert(listToSaveSetting,false)) { 
+                if (sr.isSuccess())  {
+                    objUtility.displayMessage(ApexPages.severity.Confirm,
+                        system.label.Ultra_Track_Container_Save_Message1+' '+objects+' '
+                        +system.label.Ultra_Track_Container_Save_Message2);
+                    isObject = false;
+                }
+            }
+       }
+       else{
+           objUtility.displayMessage(ApexPages.severity.WARNING,system.label.Field_Not_Selected);
+       }
+    }
+ 
+      /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to update the setting of sObject and their fields
+        * @Param : Set of string which holds the name of fields.
+        * @Return : 
+        * @Date:15/11/2015
+    */
+     public void updateSetting(set<String> selectedFieldSet){
+        String fieldvalue = '';
+        if(!savedFieldsList.isEmpty()) {
+             if(!selectedFieldSet.isEmpty()){
+                fieldvalue=getCommaSepratedFields(selectedFieldSet);
+            }
+            savedFieldsList[0].Is_Tracking_Enabled__c = (String.isBlank(fieldvalue)) ? false : true;
+            
+            savedFieldsList[0].Tracked_Fields__c = fieldvalue;
+            //Update savedFieldsList which contains 1 record
+            for(Database.SaveResult sr : Database.update(savedFieldsList,false)) {
+                if (sr.isSuccess())  {
+                    if(string.isNotBlank(savedFieldsList[0].Tracked_Fields__c)){
+                        objUtility.displayMessage(ApexPages.severity.Confirm,
+                        system.label.Ultra_Track_Container_Save_Message1+' '+objects+' '
+                        +system.label.Ultra_Track_Container_Save_Message2);
+                    }
+                    else{
+                        objUtility.displayMessage(ApexPages.severity.WARNING,system.label.Field_Not_Selected); 
+                    }
+                isObject = false;
+                }
+            }
+        }    
+    }
+    
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to create the comma Seprated string from set of selectedFields
+        * @Param : set of string which holds the name of fields.
+        * @Return : comma seprated string
+        * @Date:15/11/2015
+    */
+     public String getCommaSepratedFields(set<string> selectedFieldsSet){
+         String commaSepratedString = '';
+         if(!selectedFieldsSet.isEmpty()){
+             for(String str : selectedFieldsSet) {
+                commaSepratedString += str + ',' ;
+             }
+           commaSepratedString = commaSepratedString.subString(0,
+                                            commaSepratedString.length()-1); 
+         }
+         return commaSepratedString;
+     }
+     
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to return on same page.
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */
+    public PageReference doCancel(){
+        PageReference pageRef = new PageReference(ApexPages.currentPage().getUrl());
+        pageRef.setRedirect(true);
+        return pageRef ; 
+    }
+
+    
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.set the pagination page data as per page number.
+                       2.method creates the 2D list for displaying data in grid view on page.
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */
+    public void initializeFieldList (){
+        totalSize = allFieldswrapperClassList.size();
+        wrapperClassList = new list<UltraTrackWrapper>();
+        
+        Integer startIndex, endIndex;
+        if (counter > 0) {
+            wrapperClassList = new list<UltraTrackWrapper>();
+            startIndex = counter;
+            endIndex = totalSize - (counter+pageSize) > 0 ? counter+pageSize : totalSize;
+        } 
+        else {
+            startIndex = 0;
+            endIndex = totalSize < pageSize ? totalSize : pageSize;
+        }
+        for (Integer index = startIndex; index < endIndex; index++) {
+            wrapperClassList.add(allFieldswrapperClassList[index]);
+        }
+
+        // create 2D list to display fields in grid
+        lstOfLstWrapperClass = new list<list<UltraTrackWrapper>>();
+        if(!wrapperClassList.isEmpty()){
+            for(Integer index=0;index<wrapperClassList.size();index++){
+                Integer k = index;
+                for(Integer j=0; j < Integer.valueof(numberOfColumns); j++){
+                    if(k < wrapperClassList.size()){
+                        lstWrap.add(wrapperClassList[k]);
+                        k++;
+                    }
+                }
+                index = --k;
+                lstOfLstWrapperClass.add(lstWrap);
+                lstWrap = new list<UltraTrackWrapper>();
+            }
+        }
+
+     }
+
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.method to reach at first page of pagination
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */
+     public PageReference first() {
+      counter = 0;
+      initializeFieldList();
+      if(!wrapperClassList.isEmpty()) { 
+          //method to set selectAllCheckBox value
+          setSelectAllCheckboxValue(wrapperClassList);   
+        }
+      return null;
+    }
+
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to reach at previous page from current page
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */
+    public PageReference previous() {
+      counter -= pageSize;
+      initializeFieldList();
+      if(!wrapperClassList.isEmpty()) { 
+          //method to set selectAllCheckBox value
+          setSelectAllCheckboxValue(wrapperClassList);
+        }
+      return null;
+    }
+
+    
+     /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to reach on next page from current page
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */
+    public PageReference next() {
+      counter += pageSize;
+      initializeFieldList();
+      if(!wrapperClassList.isEmpty()) { 
+          //method to set selectAllCheckBox values
+          setSelectAllCheckboxValue(wrapperClassList);
+        }
+     return null;
+    }
+
+    
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to reach at last page
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */ 
+    public PageReference last() {
+        counter = totalSize - math.mod(totalSize, pageSize);
+        initializeFieldList();
+        if(!wrapperClassList.isEmpty()) { 
+            //method to set selectAllCheckBox value
+            setSelectAllCheckboxValue(wrapperClassList);
+        }
+        return null;
+    }
+    
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to enable or disable the pagination's previous button.
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */ 
+    public boolean getHasPrevious() { 
+        return (counter>0) ? false : true;
+    }
+    
+    /**
+        * @Author: Eternus Solutions
+        * @description : 1.Method to enable or disable the pagination's Next button.
+        * @Param :  
+        * @Return :  
+        * @Date:15/11/2015
+    */ 
+    public boolean getHasNext() {
+        return (counter + pageSize < totalSize) ? false : true;
+    }
+}

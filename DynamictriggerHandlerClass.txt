@@ -1,0 +1,240 @@
+/**
+ * Class Name: DynamicTriggerGenericHandler.
+ * @Description: This class is generic hadler for all Dynamicaly generated triggers.
+                 This stores the History data in attachment under Ultra_Track_Container__c object in JSON Format.  
+  ===============================================================================================================================
+        Version   | Date        | Author             | Comments
+    -----------------------------------------------------------------------------------------------------------------------------
+        1.0       | 16-11-2015  | Eternus Solution   | 1.Created Class for above functionality.
+        1.1       | 23-02-2016  | Eternus Solution   | 1.added code review changes.
+        1.2       | 26-02-2015  | Eternus Solution   | 1.store history data in attachment under object "Ultra_Track_Container__c"
+                                                         insted of "FieldHistoryTrackSetting" object
+        1.3       | 29-02-2015  | Eternus Solution   | 1.Removed describe call methods and added utility class for that.
+        1.4       | 03-03-2015  | Eternus Solution   | 1.added generateActionString,getHistoryWrapperInstance Method.
+   ==============================================================================================================================
+ */
+public with sharing class DynamicTriggerGenericHandler{
+    //Map to hold user data for retriving the name of user.
+    public static map<ID,User> mapUser = new map<ID,User>([SELECT 
+                                                           ID,
+                                                           Name 
+                                                           FROM User
+                                                          ]);
+    //Map of wrapper class "UltraTrackWrapper" to deserialize and serialize History data
+    @TestVisible map<String,UltraTrackWrapper> ultraTrackWapperMap;
+    //List to hold the history data and insert into Attachment file.
+    list<HistoryWrapper> historyWrapperList;
+    //Attachment object to create or update the attachment.
+    Attachment objAtt;
+    //List ID of Container record id's to query against Attachment.
+    list<ID> utcIdList = new list<ID>();
+    //List of Ultra_Track_Container__c to get selected field list
+    list<Ultra_Track_Container__c> ultraTrackContainerList;
+    //Utility class object to call methods
+    public UltraTrackUtilityClass objUtility {get;set;}
+    
+    public DynamicTriggerGenericHandler(){
+        ultraTrackContainerList = new list<Ultra_Track_Container__c>();
+        objUtility = new UltraTrackUtilityClass();
+    }
+     /**
+       * @Author: Eternus Solutions
+       * @description : Method to create or update Attachment file on update of Sobject record.
+       * @Param : It takes trigger.newMap,trigger.oldMap and sObjectName as string.
+       * @Return :
+       * @Date:29/2/2016
+    */
+    public void onUpdateStoreHistoryData(map<id,SObject> mapNewRecords,
+                                         map<id,SObject> mapOldRecords,
+                                         String ObjectName
+                                        )
+    {
+        list<String> selectedFields = new list<String>();
+        map<String,Ultra_Track_Container__c> mapSavedObjectFields =
+                                           new map<String,Ultra_Track_Container__c>();
+        map<ID,Attachment> mapAtt = new map<ID,Attachment>();
+        map<String,String> mapFieldsAndLabels = new map<String,String> ();
+        
+        if(string.isNotBlank(ObjectName)){
+            mapFieldsAndLabels = objUtility.getFieldNamesAndLabels(ObjectName);
+            ultraTrackContainerList =[SELECT Tracked_Fields__c,
+		                                     Is_Tracking_Enabled__c,
+		                                     Object_Name__c
+		                                     FROM Ultra_Track_Container__c
+		                                     WHERE Object_Name__c=:ObjectName
+                                             limit 1];
+            //proccess only if Is_Tracking_Enabled__cis enabled 
+	        if(!ultraTrackContainerList.isEmpty() && ultraTrackContainerList[0].Is_Tracking_Enabled__c)
+	        {    
+                mapSavedObjectFields.put(ultraTrackContainerList[0].Object_Name__c,ultraTrackContainerList[0]); 
+                utcIdList.add(ultraTrackContainerList[0].ID);
+                if(string.isNotBlank(ultraTrackContainerList[0].Tracked_Fields__c)){
+                    
+                    selectedFields = ultraTrackContainerList[0].Tracked_Fields__c.split(',');
+                }         
+	            for(Attachment a:[SELECT id,parentid,body 
+	                              FROM Attachment 
+	                              WHERE parentid 
+	                              IN :utcIdList 
+	                              AND Name like :system.Label.AttachmentFileName+'%'])
+	            {
+	                mapAtt.put(a.parentid,a);
+	            }   
+	            // if attachment is present for Container record
+	            if(mapSavedObjectFields.containsKey(ObjectName) 
+	                    && mapAtt.containsKey(mapSavedObjectFields.get(ObjectName).ID))
+	            {
+	                objAtt = new Attachment();
+	                objAtt = mapAtt.get(mapSavedObjectFields.get(ObjectName).ID); 
+	                ultraTrackWapperMap = new map<String,UltraTrackWrapper>();
+	                ultraTrackWapperMap = (map<String,UltraTrackWrapper>)System.JSON.deserialize(
+	                       objAtt.body.toString(), map<String,UltraTrackWrapper>.class);
+	                
+	                //iterate all selected fields
+	                for(String selectedField : selectedFields) { 
+	                    historyWrapperList = new list<HistoryWrapper>();
+	                    
+	                    //iterate all trigger.new records
+	                    for(SObject record : mapNewRecords.values()) {
+	                        if(record.get(selectedField) != mapOldRecords.get(record.id).get(selectedField)) {
+	                           String action = '';
+	                           if(mapFieldsAndLabels.containsKey(selectedField)) {
+		                           action = generateActionString(mapFieldsAndLabels.get(selectedField),
+			                           String.valueOF(mapOldRecords.get(record.id).get(selectedField)),
+			                           String.valueOf(record.get(selectedField)));
+	                           }
+                               HistoryWrapper objHW = getHistoryWrapperInstance(
+                                                   String.valueOF(mapOldRecords.get(record.id).get(selectedField)),
+                                                   String.valueOf(record.get(selectedField)),
+                                                   String.valueOf(record.get('ID')),
+                                                   String.valueOF(record.get('LastModifiedById')),
+                                                   getUserNameFromID(String.valueOf(record.get('LastModifiedById'))),
+                                                   (DateTime)record.get('LastModifiedDate'),
+                                                   action
+                                                   );
+                               if(objHW != Null) {
+                                    historyWrapperList.add(objHW);
+                               }
+	                       }
+	                   }
+	                   if(ultraTrackWapperMap.containsKey(selectedField)){
+	                      ultraTrackWapperMap.get(selectedField).lstHistory.addAll(historyWrapperList);
+	                   }
+	                   else{
+	                       ultraTrackWapperMap.put(selectedField,
+	                                                new UltraTrackWrapper(selectedField,
+	                                                        mapFieldsAndLabels.get(selectedField),
+	                                                        historyWrapperList));
+	                   }
+                    }
+	                // update if values diffrent
+	                if(JSON.serialize(ultraTrackWapperMap) != objAtt.body.toString()) {
+	                   objAtt.body=blob.valueOf(JSON.serialize(ultraTrackWapperMap));
+	                   Try{
+	                    update objAtt;
+	                   }
+	                   catch(DMLException e){
+	                       system.debug('Attachment update Exeption '+e);
+	                   }
+	                }
+	             }
+	            
+	            // if attachment is not present for Container record
+	            else if(mapSavedObjectFields.containsKey(ObjectName) 
+	                && !mapAtt.containsKey(mapSavedObjectFields.get(ObjectName).id)) 
+	            {
+	                ultraTrackWapperMap = new map<String,UltraTrackWrapper>();
+	                //iterate all selected fields
+	                for(String selectedField : selectedFields) {
+	                    historyWrapperList = new list<HistoryWrapper>();
+	                    //iterate all trigger.new records
+	                    for(SObject record: mapNewRecords.values()) {
+	                        if(record.get(selectedField) != mapOldRecords.get(record.id).get(selectedField)) {
+	                           String action='';
+	                           if(mapFieldsAndLabels.containsKey(selectedField)) {
+	                               
+		                           action = generateActionString(mapFieldsAndLabels.get(selectedField),
+		                               String.valueOF(mapOldRecords.get(record.id).get(selectedField)),
+		                               String.valueOf(record.get(selectedField)));
+	                           }
+	                           HistoryWrapper objHW = getHistoryWrapperInstance(
+						                           String.valueOF(mapOldRecords.get(record.id).get(selectedField)),
+						                           String.valueOf(record.get(selectedField)),
+						                           String.valueOf(record.get('ID')),
+						                           String.valueOF(record.get('LastModifiedById')),
+						                           getUserNameFromID(String.valueOf(record.get('LastModifiedById'))),
+						                           (DateTime)record.get('LastModifiedDate'),
+						                           action
+					                               );
+                               if(objHW != Null) {
+                                    historyWrapperList.add(objHW);
+                               }
+                           }
+	                   }
+	                   ultraTrackWapperMap.put(selectedField,new UltraTrackWrapper(selectedField,
+	                                                       mapFieldsAndLabels.get(selectedField),
+	                                                       historyWrapperList));
+	              }
+	              objAtt = new Attachment(); 
+	              objAtt.body = blob.valueOf(JSON.serialize(ultraTrackWapperMap));       
+	              objAtt.parentId = mapSavedObjectFields.get(ObjectName).ID;
+	              objAtt.Name=system.Label.AttachmentFileName + mapSavedObjectFields.get(ObjectName).ID;
+	              objAtt.contentType = 'text/plain;charset=UTF-8';
+	              objAtt.isPrivate = false;
+	              Try{
+	                  insert objAtt;
+	              }
+	              catch(DMLException e){
+	                   system.debug('Attachment insertion Exception:'+e);
+	              }
+	           } 
+	       }
+        }
+    }
+     /**
+       * @Author: Eternus Solutions
+       * @description : Method to get User's Name from ID.
+       * @Param : it takes User record Id as String.
+       * @Return : It returns User's Name.
+       * @Date:29/2/2016
+    */
+    public static String getUserNameFromID(String userID)
+    {
+        String name = '';
+       return name = (mapUser.containsKey(userID))? mapUser.get(userID).Name:'';
+    }
+    /**
+       * @Author: Eternus Solutions
+       * @description : Method to generate the action string.
+       * @Param : it takes updated field's label,old value and new value as string.
+       * @Return : It returns Action in specific format.
+       * @Date:3/3/2016
+    */
+    public static String generateActionString(String fieldLabel, String oldValue, String NewValue){
+        String action;
+        //OldValue and NewValues can be null or blank so no need to check
+        if(String.isNotBlank(fieldLabel)){
+	        action= 'Changed <b>'+ fieldLabel +' From'+ '</b> ';
+	        action +=  oldValue + ' To ';
+	        action += '<b>'+NewValue+'</b>';
+        }
+        return action;
+    }
+    /**
+       * @Author: Eternus Solutions
+       * @description : Method to create and return Instance of HistoryWrapper Class.
+       * @Param : it takes updated field's old value and new value,record Id,
+                ModifiedById,userName,Action as string And ModifiedDate as DateTime.
+       * @Return : It returns HistoryWrapper Class's instance.
+       * @Date:3/3/2016
+    */
+    public static HistoryWrapper getHistoryWrapperInstance(String oldValue, String newValue,
+                                                    String recordID, String ModifiedById,
+                                                    String userName, dateTime modifiedDate,
+                                                    String action)
+    {
+        HistoryWrapper objHW = 
+            new HistoryWrapper(oldValue, newValue, recordID, ModifiedById, userName, modifiedDate, action);
+        return objHW;
+    }
+}
