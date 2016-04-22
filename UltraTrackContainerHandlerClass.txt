@@ -1,0 +1,32 @@
+/**
+ * Class Name: UltraTrackContainerHandler
+ * @Description: This is handler class of trigger "UltraTrackContainerTrigger". 
+                 It call the method from class DynamicTriggerGenerator to create trigger on sObject. 
+  ========================================================================================================================
+        Version   | Date        | Author             | Comments
+    -------------------------------------------------------------------------------------------------------------------------
+        1.0       | 16-11-2015  | Eternus Solution   | 1.Created Trigger handler.
+        1.1       | 29-02-2016  | Eternus Solution   | 1.Changed Method Name from createDynamicTrigger to onInsertCreateDynamicTrigger
+   ========================================================================================================================
+ */
+public with sharing class UltraTrackContainerHandler
+{
+    /**
+        * @Author: Eternus Solutions
+        * @Description : Method to call the method fron helper class to crated trigger on sObject.
+        * @Param : tigger.new list and user session ID.
+        * @Return : 
+        * @Date:16/11/2015
+    */
+    public void onInsertCreateDynamicTrigger(list<Ultra_Track_Container__c > lstUtc,String sessionId){   
+       if(!lstUtc.isEmpty()){
+            for(Ultra_Track_Container__c utc : lstUtc){ 
+                if(String.isNotBlank(utc.Object_Name__c)){                  
+                    String sobjname = utc.Object_Name__c;
+                    DynamicTriggerGenerator.generateDynamicTrigger(sobjname,sessionId);                    
+                } 
+            }
+       }
+   }
+   
+}
