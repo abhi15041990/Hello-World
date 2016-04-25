@@ -1,0 +1,13 @@
+/**
+This Trigger generate the trigger on sObject when record is inserted.
+
+Date                    Author                  Changes
+16-11-2015              Eternus Solutions       Created trigger
+29-12-2016              Eternus Solutions       Changed Trigger Event             
+*/
+trigger UltraTrackContainerTrigger on Ultra_Track_Container__c (after insert) {
+    if(trigger.isAfter && trigger.isInsert){
+        UltraTrackContainerHandler objHandler = new UltraTrackContainerHandler();
+        objHandler.onInsertCreateDynamicTrigger(trigger.new,UserInfo.getSessionId());       
+    }
+}

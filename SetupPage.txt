@@ -1,0 +1,237 @@
+<!-- 
+ * Page Name: Ultra_Setup
+ * @Description:Designed Visual force page to setup the object's fields
+                for tracking their History. This page shows  all Updateable objects and 
+                there Updateable fields with check boxes.user can paginate the fields.   
+===================================================================================================
+        Version   | Date        | Author             | Comments
+---------------------------------------------------------------------------------------------------
+        1.0       | 15-11-2015  | Eternus Solution   | 1.created page
+        1.1       | 2-01-2016   | Eternus Solution   | 1.Added Pagination for Fields
+        1.2       | 26-02-2016  | Eternus Solution   | 1.Code review changes
+===================================================================================================
+ -->
+<apex:page controller="UltraSetupController" standardStylesheets="false" sidebar="false">
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="/soap/ajax/26.0/connection.js" type="text/javascript"></script>
+    
+    <script src="https://code.jquery.com/ui/1.9.0/jquery-ui.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.9.1/themes/base/jquery-ui.css" />
+    
+<!--    Refer bootstrap java script and css file from static resource  -->
+    
+    <link href="{!URLFOR($Resource.BootStrap, '/bootstrapNew/css/bootstrap.min.css')}" rel="stylesheet" />
+    <script src="{!URLFOR($Resource.BootStrap, '/bootstrapNew/js/bootstrap.min.js')}"></script>
+
+<!--    Refer the Css from static resource file "Ultra_Css"  -->
+
+    <apex:stylesheet value="{!URLFOR($Resource.Ultra_Css)}"></apex:stylesheet>
+
+    <script type="text/javascript">
+     //Funtion to perform select all deselect all functionality from one checkbox
+     function selectAllCheckboxes(obj,receivedInputID) {
+          var inputCheckBox = document.getElementsByTagName("input");
+          for(var i=0; i<inputCheckBox.length; i++) {
+              if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1) {
+                  inputCheckBox[i].checked = obj.checked; 
+              }
+          } 
+    }
+    //function to set value of selectAll and deselectAll checkbox 
+    function selectDeselect(receivedInputID) {
+        var inputCheckBox = document.getElementsByClassName("selectAllClass");
+        if(inputCheckBox[0].checked==true) {                 
+               inputCheckBox[0].checked = false;
+        }
+        var inputCheckBox1 = document.getElementsByClassName("selectDeselectAll");
+        var flag=1;
+        for(var i=0; i<inputCheckBox1.length; i++) {
+            console.log('all checkbox==='+inputCheckBox1.length);
+                if(inputCheckBox1[i].checked==true) {
+                    flag=1;
+                }
+                else {
+                    flag=0;
+                    break;
+                }
+        }
+        if(flag==1) {
+            inputCheckBox[0].checked = true;
+        }      
+    }
+    //Function to display object's fields on enter key press
+    function ShowResult(e){
+        if(e.keyCode== 13){
+            if(j$("input[id$='objectId']").val() == ''){
+                return false;
+            }
+            if(j$("input[id$='objectId']").val())
+                af1();
+                return false;
+        }   
+    }
+    //Function to clear display result on backKey press
+    function ShowResultkeyup(e){
+        if(j$("input[id$='objectId']").val() == '' && e.keyCode== 8)
+            j$(".outputclass").hide();
+            return false;   
+    }
+    //JQuery Script to perform autocomplete functionality for searchbox
+    var j$ = jQuery.noConflict();
+    var sid = '{!$Api.Session_ID}';
+    console.log('--Session ID---',sid);
+    var server = "https://" + window.location.host+"/services/Soap/u/26.0";
+    sforce.connection.init(sid, server);
+    var apexObjectList =[];
+    j$(document).ready(function(){
+            <apex:repeat value="{!objList}" var="objlist">
+                apexObjectList.push('{!objlist}');
+            </apex:repeat>
+            console.log('apexObjectList'+apexObjectList);
+        j$("input[id$='objectId']").autocomplete({
+                source : apexObjectList
+            });
+        j$("input[id$='objectId']").on('autocompleteselect', function (e, ui) {
+            j$("input[id$='objectId']").val(ui.item.value);
+             j$(this).attr({  size: j$(this).val().length}).width('auto');
+              af1();
+        });
+        j$("input[id$='objectId']").keyup(function(){
+           j$(this).attr({  size: j$(this).val().length}).width('auto');
+        });
+    }); 
+    
+    function hideMessage() {
+       j$(".message").hide();
+    }
+   </script>
+    <div class="bs PageSizeDiv" >
+        <apex:form id="frm">
+            <div>
+                <apex:image url="{!URLFOR($Resource.Ultra_SetupPage_Icon) }"
+                    width="4%" height="4%" />
+                <apex:outputLabel value="{!$Label.Setup_Page_Title}"
+                    styleClass="PageTitleLabelStyle" />
+            </div>
+
+            <apex:pageBlock id="pageblock0" mode="maindetail">
+                <apex:outputPanel id="MessagePanel">
+                    <h5><b>
+                        <apex:pageMessages id="showmsg"/></b>
+                    </h5>
+               </apex:outputPanel>
+                <div class="panel panel-default" id="test"
+                    style="border-color: #428bca;">
+                    <div class="panel-body">
+                        <div class="col-xs-2">
+                            <apex:outputLabel value="{!$Label.Ultra_Choose_an_Object}" 
+                            styleClass="PageTitleLabelStyle" />
+                        </div>
+                        <div class="col-xs-3">
+                            <apex:inputText value="{!objects}" id="objectId"
+                                onkeypress="return ShowResult(event);"
+                                onkeyup="return ShowResultkeyup(event)" html-autocomplete="off"
+                                StyleClass="form-control input-lg"
+                                html-placeholder="Enter an Object..." style="padding-left:12px">
+                            </apex:inputText>
+                        </div>
+                    </div>
+                </div>
+ <!--        Action status to show proccess of retriving fields of selected object  -->
+                <apex:actionStatus id="actStatusId" layout="block">
+                    <apex:facet name="start">
+                        <div id="assign-action-spinner-main">
+                            <div id="assign-action-spinner-content">
+<!-- 		                        <apex:image url="{!URLFOR($Resource.UltraSpinnerImg) }" -->
+<!-- 		                            width="16%" height="13%" alt="Processing..." title="Processing..." -->
+<!-- 		                             /> -->
+                                    <img src="/img/analytics/reportbuilder/icons/spinner32.gif" 
+                                    alt="Processing..." title="Processing..." />
+                            </div>
+                        </div>
+                    </apex:facet>
+                </apex:actionStatus>
+                <apex:outputPanel id="MainOutputPanal">
+                    <apex:outputPanel rendered="{!isObject}">
+                        <div class="panel panel-primary">
+                            <div class="panel-heading">
+                                <apex:outputlabel value="{!$Label.Ultra_Select_Fields}"
+                                    styleclass="labelclass" />
+                                <apex:outputText value="Select All" rendered="{!isObject}"
+                                                    styleClass="SelectAllLabelStyle" />
+
+                                <apex:inputCheckbox onclick="selectAllCheckboxes(this,'inputId')" id="selectAll"
+                                    value="{!isAllSelected}"
+                                    styleClass="checkboxClass selectAllClass"
+                                    rendered="{!isObject}" />
+                            </div>
+                            <div class="panel-body">
+                                <apex:outputPanel rendered="{!isObject}">
+                                    <table width="100%" class="table-responsive">
+                                        <apex:repeat value="{!lstOfLstWrapperClass}" var="Wraper">
+                                            <tr>
+                                                <apex:repeat value="{!Wraper}" var="w">
+                                                    <td class="CheckboxColumnStyle">
+                                                        <apex:inputCheckbox value="{!w.isSelected}" id="inputId"
+                                                            onChange="selectDeselect('inputid')"
+                                                            styleClass="checkboxClass selectDeselectAll" />
+                                                    </td>
+                                                    <td class="FieldLabelStyle">
+                                                        <apex:outputText value="{!w.fieldLabel}" />
+                                                    </td>
+                                                </apex:repeat>
+                                            </tr>
+                                        </apex:repeat>
+                                    </table>
+                                </apex:outputPanel>
+                                <hr class="LineStyle" />
+                                <div class="arrows">
+                                    <!--                Save and Cancel buttons -->
+                                    <apex:commandButton action="{!SelectedFieldsName}" 
+                                                    Value="Save"
+                                                    styleclass="btn btn-primary" 
+                                                    style="padding: 4px 24px; margin-right:6px"
+			                                        reRender="frm"
+			                                        onComplete="setTimeout(hideMessage, 5000)">
+                                    </apex:commandButton>
+                                    <apex:commandButton action="{!doCancel}" value="Cancel"
+                                        styleclass="btn btn-primary" style="padding: 4px 24px;">
+                                    </apex:commandButton>
+                                    <div class="PaginationBtnDiv">
+                    <!--                       Pagination Buttons -->
+                                             <apex:outputPanel id="navigateButtons"
+                                                 rendered="{!isObject}">
+                                                 <apex:commandButton action="{!first}" title="first"
+                                                     value="<<" styleclass="btn btn-primary"
+                                                     disabled="{!hasPrevious}" reRender="pageblock0" 
+                                                     style="margin-right:3px;margin-bottom: 5px;"/>
+                                                 <apex:commandButton action="{!Previous}" title="Previous"
+                                                     value="<" styleclass="btn btn-primary"
+                                                     disabled="{!hasPrevious}" reRender="pageblock0"
+                                                     style="margin-right:3px;margin-bottom: 5px;"/>
+                                                 <apex:commandButton action="{!Next}" title="Next" value=">"
+                                                     styleclass="btn btn-primary" disabled="{!hasNext}"
+                                                     reRender="pageblock0"
+                                                     style="margin-right:3px;margin-bottom: 5px;"/>
+                                                 <apex:commandButton action="{!last}" title="last"
+                                                     value=">>" styleclass="btn btn-primary"
+                                                     disabled="{!hasNext}" reRender="pageblock0" 
+                                                     style="margin-right:3px;margin-bottom: 5px;"/>
+                                             </apex:outputPanel>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div> 
+                        <!--                      </div> -->
+                        <!--                  </div> -->
+                    </apex:outputPanel>
+                </apex:outputPanel>
+                <div style="margin-top: 4px"></div>
+            </apex:pageBlock>
+            <!--         Action Funtion to call controller methods when user select object -->
+            <apex:actionFunction name="af1" reRender="MainOutputPanal"
+                action="{!refresh}" status="actStatusId"/>
+        </apex:form>
+    </div>
+</apex:page>
