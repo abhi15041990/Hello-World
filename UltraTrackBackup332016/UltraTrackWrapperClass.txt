@@ -1,0 +1,63 @@
+/**
+ * @Class Name: UltraTrackWrapper
+ * @Description: Wrapper class to store information regarding history related to fields.   
+  ========================================================================================================================
+        Version   | Date        | Author             | Comments
+    -------------------------------------------------------------------------------------------------------------------------
+        1.0       | 22-02-2016  | Eternus Solution   | 1. Created 3 paramterized constructor and campareTo method.
+   ========================================================================================================================
+ */
+public with sharing class UltraTrackWrapper implements comparable {
+    
+    public string fieldApiName;
+    public string fieldLabel {get;set;}
+    public list<HistoryWrapper> lstHistory;
+    public boolean isSelected{get;
+                              set { 
+                                    isSelected = value == null ? false : value ;
+                                  }
+                              }
+    /**
+     * @Description : Constructor to set values related to fields.
+     * @Paramenter  : 1. fieldApiName API name of field
+     *               2. fieldLabel Label of field
+    */
+    public UltraTrackWrapper(string fieldApiName,string fieldLabel) {
+        this.fieldApiName=fieldApiName;
+        this.fieldLabel=fieldLabel;
+    }
+    
+    /**
+     * @Description : Constructor to set values related to fields along with history.
+     * @Paramenter  : 1. fieldApiName API name of field
+     *               2. fieldLabel Label of field
+     *               3. history list of history wrapper
+    */
+    public UltraTrackWrapper(string fieldApiName,string fieldLabel,List<HistoryWrapper> history){
+        this(fieldApiName, fieldLabel);
+        this.lstHistory = new List<HistoryWrapper>();
+        this.lstHistory = history;
+    }
+    
+     /**
+     * @Description : Constructor to set values related to fields along with history.
+     * @Paramenter  : 1. fieldApiName API name of field
+     *               2. fieldLabel Label of field
+     *               3. isSelected to check field tracking enabled for field.
+    */
+    public UltraTrackWrapper(String fieldName,String fieldLabel,boolean isSelected) {
+        this(fieldName, fieldLabel);
+        this.isSelected = isSelected;
+    }
+    
+    /**
+     * @Description : Method to sort wrapper base on field label.
+     * @Paramenter  : ObjToCompare object for wrapper to campare
+     * @Return      : Return 1 in case of desending order or -1 in asending order.
+    */
+    public Integer compareTo(Object ObjToCompare) {
+      UltraTrackWrapper that = (UltraTrackWrapper)ObjToCompare;
+      return (this.fieldLabel > that.fieldLabel) ? 1 : -1;
+    } 
+
+}

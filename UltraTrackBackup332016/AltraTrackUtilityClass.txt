@@ -1,0 +1,47 @@
+/**
+ * Class Name: UltraTrackUtilityClass
+ * @Description: Utility class for describe call.   
+  ============================================================================================
+        Version   | Date        | Author             | Comments
+    ------------------------------------------------------------------------------------------
+        1.0       | 29-02-2016  | Eternus Solution   | 1.added getFieldNamesAndLabels Method
+   ===========================================================================================
+ */
+ public without sharing class UltraTrackUtilityClass{
+    //Map to hold the object name and it's sobject Type
+    static map<String, Schema.SObjectType> objMap {get{if(objMap == null) 
+                                                       objMap =  Schema.getGlobalDescribe();
+                                                       return objMap;} private set;}
+    public UltraTrackUtilityClass(){
+        objMap = Schema.getGlobalDescribe();
+    }
+    
+    /**
+        * @Author: Eternus Solutions
+        * @description : Method to get the sObject's field names and field labels
+        * @Param : it takes string sObject Name as param
+        * Return : It returns map of field name as key and field label as value
+        * Date:29/2/2016
+    */
+    public map<String,String> getFieldNamesAndLabels(String sObjectName){
+        map<String,String> mapFieldNameAndLabel  = new map<String,String>();
+        if(String.isNotBlank(sObjectName) && objMap.containsKey(sObjectName)){
+           for(Schema.SObjectField fieldType : objMap.get(sObjectName).getDescribe().fields.getMap().values()){
+               if(fieldType.getDescribe().isUpdateable()) {
+                   mapFieldNameAndLabel.put(fieldtype.getDescribe().getName(),fieldtype.getDescribe().getLabel());
+               }
+           }
+        }
+        return mapFieldNameAndLabel;
+    }
+    /**
+        * @Author: Eternus Solutions
+        * @description : Method to display message on Pages
+        * @Param : it takes string Message that to be displyed on page.
+        * @Return :
+        * @Date:29/2/2016
+    */
+    public void displayMessage(ApexPages.severity severity,String message){
+        ApexPages.AddMessage(new ApexPages.Message(severity,message));
+    }
+ }

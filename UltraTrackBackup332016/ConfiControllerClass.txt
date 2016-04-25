@@ -1,0 +1,94 @@
+/**
+ * Class Name: ConfigurationController 
+ * @Description: This is Controller of Configuration Visual force page. 
+    It is update the setting into custom settings for NumberOfColumn 
+    and NumberOfFieldsPerColumn to display data on setup Page. 
+  ==================================================================================================
+        Version   | Date        | Author             | Comments
+  --------------------------------------------------------------------------------------------------
+        1.0       | 15-11-2015  | Eternus Solution   | 1.Created the class for above functionality.
+        1.1       | 22-02-2016  | Eternus Solution   | 1.Code review changes. 
+        1.2       | 29-02-2016  | Eternus Solution   | 1.store setting data into custom setting.
+        1.3       | 01-03-2016  | Eternus Solution   | 1.added doCancel method. 
+  ===================================================================================================
+ */
+public with sharing class ConfigurationController {
+    //To display fields in how many columns 
+    public Integer numberOfColumns {get;set;}
+    //to display fields per column
+    public Integer numberOfFieldsPerColumns {get;set;}
+    //string variable to store the default value of picklist
+    public static final String defaultPicklistValue=' --None-- ';
+    //List to hold the values of picklist number of columns
+    public list<selectOption> numberOfColValues{get;set;}
+    //List to hold the values of picklist number of fields per columns
+    public list<selectOption> numberOfFieldsPerColValues{get;set;}
+    //Utility class object to call methods
+    public UltraTrackUtilityClass objUtility {get;set;}
+    /**
+       * @Author: Eternus Solutions
+       * @description : Constructor to set the values of picklist "Number of Columns" and "Number of Fields per column"
+       * @Param :
+       * @Return : 
+       * @Date:29/02/2016
+    */
+    public ConfigurationController(){
+        objUtility = new UltraTrackUtilityClass();
+        numberOfColValues = new list<selectOption>();
+        numberOfColValues.add(new selectOption(system.label.DefaultNumberOfColumnValue,defaultPicklistValue));
+        list<Number_Of_Columns__c> listNumberOfColumns = Number_Of_Columns__c.getAll().Values();
+        if(!listNumberOfColumns.isEmpty()){
+            for(Number_Of_Columns__c obj : listNumberOfColumns ){
+                numberOfColValues.add(new selectOption(obj.Name,obj.Name));
+            }
+        }
+        numberOfFieldsPerColValues = new list<selectOption>(); 
+        numberOfFieldsPerColValues .add(new selectOption(system.label.DefaultNumberOfFieldsPerColumnValue,defaultPicklistValue));
+        list<Number_Of_Fields_Per_Column__c> listNumberOfFieldsColumns = Number_Of_Fields_Per_Column__c.getAll().Values();
+        if(!listNumberOfFieldsColumns.isEmpty()){
+            for(Number_Of_Fields_Per_Column__c obj : listNumberOfFieldsColumns ){
+                numberOfFieldsPerColValues .add(new selectOption(obj.Name,obj.Name));
+            }
+        }
+    }
+    
+    /**
+       * @Author: Eternus Solutions
+       * @description : Method to update the configuration setting into custom setting
+       * @Param :
+       * @Return : 
+       * @Date:29/02/2016
+    */
+    public void saveConfiguration(){
+        map<String,Configuration__c> mapConfig = Configuration__c.getAll();
+        if(mapConfig.containsKey(system.Label.ConfigureColsAndFieldsCustomSettingRecordName)){
+            Configuration__c objCofig = mapConfig.get(system.Label.ConfigureColsAndFieldsCustomSettingRecordName);
+            objCofig.Number_Of_Columns__c = numberOfColumns;
+            objCofig.Number_Of_Fields_Per_Column__c = numberOfFieldsPerColumns;
+            
+            try{
+                update objCofig;
+                objUtility.displayMessage(ApexPages.severity.Confirm,
+                                        system.label.ConfigurationMessage); 
+            }
+            catch(Exception e){
+            objUtility.displayMessage(ApexPages.severity.WARNING,
+                            e.getMessage());
+            }
+        }
+        
+    }
+    
+    /**
+       * @Author: Eternus Solutions
+       * @description : 1.Method to return on same page.
+       * @Param :  
+       * @Return :  
+       * @Date:1/3/2015
+    */
+    public PageReference doCancel(){
+        PageReference pageRef = new PageReference(ApexPages.currentPage().getUrl());
+        pageRef.setRedirect(true);
+        return pageRef ; 
+    }
+}

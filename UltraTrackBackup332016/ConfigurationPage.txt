@@ -1,0 +1,105 @@
+<!-- 
+ * Page Name: Configuration
+ * @Description:This page is designed for configuring the fields display view on setUp page.   
+===================================================================================================
+        Version   | Date        | Author             | Comments
+---------------------------------------------------------------------------------------------------
+        1.0       | 15-11-2015  | Eternus Solution   | 1.created page
+        1.1       | 22-02-2016  | Eternus Solution   | 1.Code review changes
+        1.2       | 26-02-2016  | Eternus Solution   | 1.CSS Changes
+===================================================================================================
+ -->
+<apex:page Controller="ConfigurationController" sidebar="false" standardStylesheets="false">
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+     
+    <link href="{!URLFOR($Resource.bootStrap, '/bootstrapNew/css/bootstrap.min.css')}" rel="stylesheet" />
+    <script src="{!URLFOR($Resource.bootStrap, '/bootstrapNew/js/bootstrap.min.js')}"></script>
+    
+    <!-- Refer the static resource CSS file "FHT_ConfigurationPageCss" -->
+     <apex:stylesheet value="{!URLFOR($Resource.Ultra_Css)}"></apex:stylesheet>
+    
+<!--     Java script Function to remove the message after 5 second -->
+    <script>
+        var j$ = jQuery.noConflict();
+        function hideMessage() {
+       j$(".message").hide();
+    }
+    </script>
+    
+ <div class="bs PageSizeDiv"> 
+    <apex:form id="ConfigForm">
+    <div>
+        <apex:image url="{!URLFOR($Resource.ConfigImages) }" width="4%" height="4%"/>
+        <apex:outputLabel value="{!$Label.ConfigurationPageTitle}" 
+                styleClass="PageTitleLabelStyle"/> 
+   </div>
+      <apex:outputPanel id="MessagePanel">
+            <div class="ConfigMessageDivStyle">
+                <h5><b><apex:pageMessages id="showmsg"/></b></h5>
+            </div>
+        </apex:outputPanel>
+       <apex:outputPanel id="Panel1">
+	       <div class="panel panel-primary">
+	           <div class="Configpanel-heading">
+	               <apex:outputLabel value="{!$Label.ConfigurationPageBlockTitle}" 
+	                           styleClass="ConfigPageBlockTitle"/>
+	           </div>
+	           <div class="panel-body">
+	              <div class="form-group">
+		            <table width="100%" style="margin-left: 27%;">
+			            <tr> 
+			            <td class="ConfigColStyle">
+			                 <div style="margin-top: 10px;">
+			                    <apex:outputLabel value="{!$Label.Number_Of_Columns}" 
+			                                 styleClass="ConfigLabelStyle"/>
+			                 </div>
+			            </td>
+			            <td>
+			                <div class="col-sm-2">
+			                    <apex:selectList value="{!numberOfColumns}" size="1" 
+			                                         styleClass="form-control">
+			                      <apex:selectOptions value="{!numberOfColValues}"/>
+			                  </apex:selectList>
+			                </div>
+			           </td>
+			           </tr>
+			           <tr>
+			              <td class="ConfigColStyle">
+			                    <div style="margin-top: 10px;">
+			                      <apex:outputLabel value="{!$Label.Number_Of_Fields_Per_Column}" 
+			                                 styleClass="ConfigLabelStyle" />
+			                    </div>
+			              </td>
+			              <td>
+			                    <div class="col-sm-2">
+			                        <apex:selectList value="{!numberOfFieldsPerColumns}" 
+			                                         size="1" 
+			                                         styleClass="form-control">
+			                            <apex:selectOptions value="{!numberOfFieldsPerColValues}"/>
+			                        </apex:selectList>
+			                   </div>
+			              </td>
+		              </tr>
+		              <tr>
+		               <td style="text-align: right;">
+		                <apex:commandButton action="{!saveConfiguration}" 
+		                        value="Save" reRender="ConfigForm"
+		                        onComplete="setTimeout(hideMessage, 5000)"
+		                        styleclass="btn btn-primary"
+		                        style="margin-left: 124px;width: 79px;" />
+		               </td>
+		               <td style="text-align: Left;">
+		                <apex:commandButton action="{!doCancel}" 
+		                        value="Cancel" 
+		                        styleclass="btn btn-primary"
+		                        style="margin-left: 12px;width: 79px;" />
+		               </td>
+		            </tr>
+		         </table>
+	         </div>
+	       </div>
+	   </div>
+   </apex:outputPanel>
+  </apex:form> 
+</div>
+</apex:page>
